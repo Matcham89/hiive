@@ -19,8 +19,7 @@ module "eks" {
 module "app" {
   source = "./modules/app"
 
-  cluster_name = var.cluster_name
-  environment  = var.environment
+  environment = var.environment
 
   depends_on = [module.eks]
 }
