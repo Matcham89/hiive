@@ -1,5 +1,0 @@
-aws_region         = "us-east-1"
-environment        = "production"
-cluster_name       = "hiive"
-vpc_cidr           = "10.0.0.0/16"
-kubernetes_version = "1.33"
