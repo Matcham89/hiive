@@ -1,0 +1,27 @@
+name: cicd workflow
+
+on:
+  # Triggers the workflow on push request event but only for the "main" branch
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+  pull_request:
+    branches: ["main"]
+
+# Need ID token write permission to use OIDC
+permissions:
+  id-token: write
+jobs:
+  run_job_with_aws:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: arn:aws:iam::637423429740:role/terraform-github-actions
+          aws-region: us-east-1
+      - name: Additional steps
+        run: |
+          # Your commands that require AWS credentials
+          aws sts get-caller-identity
