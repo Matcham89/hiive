@@ -6,6 +6,25 @@ module "vpc" {
   vpc_cidr     = var.vpc_cidr
 }
 
+resource "aws_security_group" "cloudshell" {
+  name        = "cloudshell-vpc-sg"
+  description = "CloudShell VPC environment outbound only"
+  vpc_id      = module.vpc.vpc_id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "cloudshell-vpc-sg"
+    Environment = var.environment
+    Terraform   = "true"
+  }
+}
+
 module "eks" {
   source = "./modules/eks"
 
@@ -15,6 +34,16 @@ module "eks" {
   vpc_id             = module.vpc.vpc_id
   private_subnet_ids = module.vpc.private_subnet_ids
   admin_arns         = var.admin_arns
+}
+
+resource "aws_security_group_rule" "cloudshell_to_eks" {
+  type                     = "ingress"
+  security_group_id        = module.eks.cluster_security_group_id
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.cloudshell.id
+  description              = "Allow CloudShell VPC environment to reach EKS API"
 }
 
 module "monitoring" {
