@@ -104,24 +104,19 @@ The EKS API endpoint is private — the Kubernetes Terraform provider cannot rea
 
 **Open CloudShell:** AWS Console → top-right toolbar → CloudShell icon
 
-In the CloudShell terminal:
+Paste this single command into CloudShell — it clones the repo and runs `deploy.sh`, which installs Terraform if needed, then runs `init`, `apply`, and configures kubectl automatically:
 
 ```bash
-git clone https://github.com/Matcham89/hiive.git
-cd hiive/terraform/k8s
-terraform init
-terraform apply
+git clone https://github.com/Matcham89/hiive.git && bash hiive/terraform/k8s/deploy.sh
 ```
 
 This deploys the hello-world namespace, deployment, and service (~1–2 minutes).
 
 ### 5. Verify the application
 
-Still in CloudShell, configure kubectl and check the pods:
+Still in CloudShell, check the pods and port-forward to preview:
 
 ```bash
-aws eks update-kubeconfig --name hiive --region us-east-1
-
 kubectl get pods -n hello-world
 kubectl get svc  -n hello-world
 
