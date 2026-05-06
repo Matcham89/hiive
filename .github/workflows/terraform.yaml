@@ -12,7 +12,6 @@ on:
 permissions:
   id-token: write
   contents: read
-  pull-requests: write
 
 defaults:
   run:
@@ -84,21 +83,6 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.plan.outputs.stdout }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-
-      # Post the plan output as a collapsible comment on the PR
-      - name: Post plan to PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const plan = `${{ steps.plan.outputs.stdout }}`;
-            const truncated = plan.length > 60000 ? plan.slice(0, 60000) + '\n\n... (truncated)' : plan;
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `### Terraform Plan\n<details><summary>Show plan</summary>\n\n\`\`\`\n${truncated}\n\`\`\`\n</details>`
-            });
 
       - name: Fail on plan error
         if: steps.plan.outputs.exitcode == '1'
