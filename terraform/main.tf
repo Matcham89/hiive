@@ -4,7 +4,6 @@ module "vpc" {
   cluster_name = var.cluster_name
   environment  = var.environment
   vpc_cidr     = var.vpc_cidr
-  aws_region   = var.aws_region
 }
 
 module "eks" {
