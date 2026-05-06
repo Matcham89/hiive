@@ -128,6 +128,7 @@ resource "aws_cloudwatch_dashboard" "eks" {
         height = 6
         properties = {
           title   = "Node CPU Utilization (%)"
+          region  = var.region
           metrics = [["ContainerInsights", "node_cpu_utilization", "ClusterName", var.cluster_name]]
           period  = 300
           stat    = "Average"
@@ -143,6 +144,7 @@ resource "aws_cloudwatch_dashboard" "eks" {
         height = 6
         properties = {
           title   = "Node Memory Utilization (%)"
+          region  = var.region
           metrics = [["ContainerInsights", "node_memory_utilization", "ClusterName", var.cluster_name]]
           period  = 300
           stat    = "Average"
@@ -158,6 +160,7 @@ resource "aws_cloudwatch_dashboard" "eks" {
         height = 6
         properties = {
           title   = "Running Containers"
+          region  = var.region
           metrics = [["ContainerInsights", "pod_number_of_running_containers", "ClusterName", var.cluster_name]]
           period  = 300
           stat    = "Sum"
@@ -172,6 +175,7 @@ resource "aws_cloudwatch_dashboard" "eks" {
         height = 6
         properties = {
           title   = "Pod Restarts"
+          region  = var.region
           metrics = [["ContainerInsights", "pod_number_of_container_restarts", "ClusterName", var.cluster_name]]
           period  = 300
           stat    = "Sum"

@@ -5,7 +5,7 @@ variable "environment" {
 variable "image" {
   description = "Container image to deploy"
   type        = string
-  default     = "nginx:latest"
+  default     = "nginx:1.27-alpine"
 }
 
 variable "replicas" {
