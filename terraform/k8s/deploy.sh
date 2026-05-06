@@ -4,6 +4,10 @@ set -euo pipefail
 TERRAFORM_VERSION="1.9.8"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Store providers in /tmp to avoid filling the 1GB CloudShell home directory.
+# /tmp has ~200MB free by default and doesn't need to persist across sessions.
+export TF_DATA_DIR="/tmp/terraform-k8s-data"
+
 # Install Terraform to ~/bin if not already present
 if ! command -v terraform &>/dev/null; then
   echo "Terraform not found — installing v${TERRAFORM_VERSION} to ~/bin"
