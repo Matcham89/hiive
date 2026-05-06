@@ -54,11 +54,11 @@ The two Terraform roots are intentionally separate. The infra root (`terraform/`
 | Terraform | 1.5.0 |
 | AWS CLI | 2.x configured with your credentials |
 
-### Phase 2 — AWS CloudShell
+### Phase 2 — AWS CloudShell (VPC environment)
 
-No local tooling required. CloudShell comes with Terraform, AWS CLI, and kubectl pre-installed and runs inside the AWS network with your console credentials automatically available.
+No local tooling required. The deploy script installs Terraform automatically. CloudShell must be configured as a **VPC environment** so it can resolve and reach the private EKS API endpoint — instructions in step 4 below.
 
-AWS credentials must have permissions to create: VPC, EKS, IAM roles, CloudWatch resources.
+AWS credentials must have permissions to create: VPC, EKS, IAM roles, CloudWatch resources, EC2 security groups.
 
 ---
 
@@ -96,23 +96,45 @@ terraform init
 terraform apply
 ```
 
-This provisions the VPC, EKS cluster, and CloudWatch observability (~10–15 minutes).
+This provisions:
+- VPC with public/private subnets and NAT Gateway
+- EKS Auto Mode cluster (private endpoint)
+- A `cloudshell-vpc-sg` security group for the CloudShell VPC environment
+- An ingress rule on the EKS cluster security group allowing 443 from `cloudshell-vpc-sg`
+- CloudWatch Container Insights, alarms, and dashboard
 
-### 4. Deploy Phase 2 — Kubernetes application (AWS CloudShell)
+Takes ~10–15 minutes. Note the outputs at the end — you'll need them for step 4:
 
-The EKS API endpoint is private — the Kubernetes Terraform provider cannot reach it from the internet. **AWS CloudShell** runs inside the AWS network and can reach private EKS endpoints without any VPN or bastion setup.
+```bash
+terraform output vpc_id
+terraform output private_subnet_id
+terraform output cloudshell_security_group_id
+```
 
-**Open CloudShell:** AWS Console → top-right toolbar → CloudShell icon
+### 4. Create the CloudShell VPC environment
 
-Paste this single command into CloudShell — it clones the repo and runs `deploy.sh`, which installs Terraform if needed, then runs `init`, `apply`, and configures kubectl automatically:
+Phase 2 runs from CloudShell **inside the VPC** so it can reach the private EKS endpoint and pull from GitHub via NAT Gateway.
+
+1. AWS Console → top-right toolbar → **CloudShell**
+2. **Actions → Create environment**
+3. Configure:
+   - **Name**: `hiive-vpc`
+   - **VPC**: value from `terraform output vpc_id`
+   - **Subnet**: value from `terraform output private_subnet_id` (must be private — public subnets won't have internet from CloudShell)
+   - **Security group**: value from `terraform output cloudshell_security_group_id`
+4. Click **Create** (~1 minute)
+
+### 5. Deploy Phase 2 — Kubernetes application (CloudShell VPC environment)
+
+In the CloudShell VPC environment created above, paste this single command. It clones the repo, installs Terraform if needed, then runs `init`, `apply`, and configures kubectl:
 
 ```bash
 git clone https://github.com/Matcham89/hiive.git && bash hiive/terraform/k8s/deploy.sh
 ```
 
-This deploys the hello-world namespace, deployment, and service (~1–2 minutes).
+Deploys the hello-world namespace, deployment, and service (~1–2 minutes).
 
-### 5. Verify the application
+### 6. Verify the application
 
 Still in CloudShell, check the pods and port-forward to preview:
 
@@ -126,7 +148,7 @@ kubectl port-forward -n hello-world svc/hello-world 8080:80
 
 In CloudShell, click **Actions → Preview running application** (or use the web preview button on port 8080) to open the nginx welcome page in your browser.
 
-### 6. View observability
+### 7. View observability
 
 Navigate to **CloudWatch → Dashboards → hiive-eks-overview** in the AWS Console, or get the direct URL from your local machine:
 
@@ -148,6 +170,12 @@ EKS Auto Mode (launched at re:Invent 2024) lets AWS manage the full node lifecyc
 ### Private cluster with NAT Gateway for outbound
 
 The Kubernetes API endpoint is private (`cluster_endpoint_public_access = false`), so the control plane is not reachable from the internet. Worker nodes sit in private subnets with no public IPs. A single NAT Gateway in the public subnet handles all outbound traffic, including pulling images from public ECR and Docker Hub, without exposing any inbound path. A single NAT Gateway is intentional here to keep costs low for this demo; a production deployment should run one NAT Gateway per Availability Zone to survive an AZ failure.
+
+### CloudShell VPC environment for in-VPC tooling
+
+Because the EKS API endpoint is private, deployment tooling (kubectl, the Kubernetes Terraform provider) must run from inside the VPC. Rather than provisioning a long-running EC2 bastion, this stack uses an **AWS CloudShell VPC environment** placed in a private subnet — same network reachability, but no instance to keep patched and no costs when idle.
+
+The `cloudshell-vpc-sg` security group has no inbound rules and unrestricted egress, and an explicit `aws_security_group_rule` opens port 443 on the EKS cluster security group only from this SG. Combined with the existing `admin_arns` access entry, this gives CloudShell exactly the permissions it needs to deploy Phase 2 and nothing more.
 
 ---
 
@@ -230,5 +258,7 @@ Explicit CPU/memory limits (`100m` / `128Mi`) prevent a misbehaving pod from sta
 | `cluster_name` | EKS cluster name |
 | `cluster_endpoint` | Private API endpoint (sensitive) |
 | `configure_kubectl` | Shell command to configure kubectl |
-| `vpc_id` | VPC ID |
+| `vpc_id` | VPC ID — used when creating the CloudShell VPC environment |
+| `private_subnet_id` | Private subnet ID — used for the CloudShell VPC environment |
+| `cloudshell_security_group_id` | Security group for the CloudShell VPC environment (allowed to reach EKS API on 443) |
 | `cloudwatch_dashboard_url` | URL to the CloudWatch dashboard |
