@@ -22,12 +22,12 @@ jobs:
     name: Format & Validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::637423429740:role/terraform-github-actions
           aws-region: us-east-1
@@ -42,7 +42,7 @@ jobs:
         run: terraform validate
 
       - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@v4
+        uses: terraform-linters/setup-tflint@v6
 
       - name: TFLint init
         run: tflint --init
@@ -57,14 +57,14 @@ jobs:
     outputs:
       exitcode: ${{ steps.plan.outputs.exitcode }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: true
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::637423429740:role/terraform-github-actions
           aws-region: us-east-1
@@ -77,13 +77,6 @@ jobs:
         run: terraform plan -var-file=prod.tfvars -out=tfplan -detailed-exitcode -no-color
         continue-on-error: true
 
-      - name: Write plan summary
-        run: |
-          echo "## Terraform Plan" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.plan.outputs.stdout }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
       - name: Fail on plan error
         if: steps.plan.outputs.exitcode == '1'
         run: exit 1
@@ -91,7 +84,7 @@ jobs:
       # Store the plan so the apply job can use it without re-planning
       - name: Upload plan
         if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan
           path: terraform/tfplan
@@ -104,12 +97,12 @@ jobs:
     needs: plan
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.plan.outputs.exitcode == '2'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::637423429740:role/terraform-github-actions
           aws-region: us-east-1
@@ -118,7 +111,7 @@ jobs:
         run: terraform init
 
       - name: Download plan
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: tfplan
           path: terraform/
