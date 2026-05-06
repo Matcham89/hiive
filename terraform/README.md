@@ -53,7 +53,7 @@ AWS credentials must have permissions to create: VPC, EKS, IAM roles, CloudWatch
 ### 1. Clone the repository
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Matcham89/hiive.git
 cd terraform
 ```
 
