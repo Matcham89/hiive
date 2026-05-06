@@ -18,3 +18,9 @@ variable "vpc_id" {
 variable "private_subnet_ids" {
   type = list(string)
 }
+
+variable "admin_arns" {
+  description = "IAM principal ARNs to grant EKS cluster-admin access (e.g. CloudShell role, CI role)"
+  type        = list(string)
+  default     = []
+}

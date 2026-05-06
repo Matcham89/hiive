@@ -27,3 +27,9 @@ variable "kubernetes_version" {
   type        = string
   default     = "1.33"
 }
+
+variable "admin_arns" {
+  description = "IAM principal ARNs to grant EKS cluster-admin (e.g. CloudShell role, CI role)"
+  type        = list(string)
+  default     = ["arn:aws:iam::637423429740:user/dev-account"]
+}
