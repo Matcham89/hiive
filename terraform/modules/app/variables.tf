@@ -9,7 +9,7 @@ variable "environment" {
 variable "image" {
   description = "Container image to deploy"
   type        = string
-  default     = "public.ecr.aws/nginx/nginx:alpine"
+  default     = "nginx:latest"
 }
 
 variable "replicas" {
