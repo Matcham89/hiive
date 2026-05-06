@@ -4,30 +4,6 @@ Deploys a private EKS cluster on AWS with a containerised hello-world applicatio
 
 ---
 
-## Architecture
-
-```
-                        ┌─────────────────────────────────────────┐
-                        │              AWS VPC (10.0.0.0/16)      │
-                        │                                          │
-                        │  ┌──────────────┐  ┌─────────────────┐ │
-   Internet ──── IGW ───┼─►│ Public Subnet│  │ Private Subnet  │ │
-                        │  │ (NAT Gateway)│  │ (EKS nodes)     │ │
-                        │  └──────┬───────┘  └────────┬────────┘ │
-                        │         │   outbound only    │          │
-                        │         └────────────────────┘          │
-                        │                    │                    │
-                        │         ┌──────────▼──────────┐        │
-                        │         │   EKS Cluster        │        │
-                        │         │   (Auto Mode,        │        │
-                        │         │    private API)      │        │
-                        │         │                      │        │
-                        │         │  hello-world (nginx) │        │
-                        │         │  ClusterIP service   │        │
-                        │         └──────────────────────┘        │
-                        └─────────────────────────────────────────┘
-```
-
 **Key properties:**
 
 | Property | Detail |
