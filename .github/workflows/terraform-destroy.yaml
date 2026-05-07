@@ -39,20 +39,9 @@ jobs:
         id: vpc
         run: echo "id=$(terraform output -raw vpc_id)" >> "$GITHUB_OUTPUT"
 
-      - name: Destroy EKS and dependent resources first
-        run: |
-          terraform destroy \
-            -target=module.monitoring \
-            -target=aws_security_group_rule.cloudshell_to_eks \
-            -target=module.eks \
-            -var-file=prod.tfvars \
-            -auto-approve
-
-      - name: Clean up orphaned ENIs in VPC
+      - name: Delete available ENIs (CloudShell and other orphans)
         run: |
           VPC_ID="${{ steps.vpc.outputs.id }}"
-
-          # Delete available (unattached) ENIs left behind by CloudShell or other services
           AVAILABLE_ENIS=$(aws ec2 describe-network-interfaces \
             --filters "Name=vpc-id,Values=$VPC_ID" "Name=status,Values=available" \
             --query 'NetworkInterfaces[*].NetworkInterfaceId' \
@@ -62,8 +51,19 @@ jobs:
             aws ec2 delete-network-interface --network-interface-id "$ENI_ID"
           done
 
-          # Wait for AWS-managed in-use ENIs (e.g. EKS control plane) to be released
-          echo "Waiting for in-use ENIs to clear..."
+      - name: Destroy EKS and dependent resources first
+        run: |
+          terraform destroy \
+            -target=module.monitoring \
+            -target=aws_security_group_rule.cloudshell_to_eks \
+            -target=module.eks \
+            -var-file=prod.tfvars \
+            -auto-approve
+
+      - name: Wait for EKS ENIs to be released
+        run: |
+          VPC_ID="${{ steps.vpc.outputs.id }}"
+          echo "Waiting for all ENIs in VPC to clear..."
           for i in $(seq 1 30); do
             COUNT=$(aws ec2 describe-network-interfaces \
               --filters "Name=vpc-id,Values=$VPC_ID" \
