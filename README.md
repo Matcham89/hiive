@@ -138,6 +138,31 @@ The workflow requires the word `destroy` to be typed explicitly before it will p
 
 ---
 
+## Manual Deployment
+
+Authenticate using the `AWS_ACCESS_KEY_ID` & `AWS_SECRET_ACCESS_KEY` provides in 1password.
+
+Configure the terminal
+
+```bash
+export AWS_ACCESS_KEY_ID=""
+
+export AWS_SECRET_ACCESS_KEY=""
+
+ aws sts get-caller-identity 
+```
+
+
+```bash
+cd terraform
+
+terraform init
+
+terraform plan -var-file=prod.tfvars 
+
+terraform apply -var-file=prod.tfvars 
+```
+
 ## Design decisions
 
 ### EKS Auto Mode

@@ -35,5 +35,33 @@ jobs:
       - name: terraform init
         run: terraform init
 
-      - name: terraform destroy
+      - name: Capture VPC ID before destroy
+        id: vpc
+        run: echo "id=$(terraform output -raw vpc_id)" >> "$GITHUB_OUTPUT"
+
+      - name: Destroy EKS and dependent resources first
+        run: |
+          terraform destroy \
+            -target=module.monitoring \
+            -target=aws_security_group_rule.cloudshell_to_eks \
+            -target=module.eks \
+            -var-file=prod.tfvars \
+            -auto-approve
+
+      - name: Wait for EKS ENIs to be released
+        run: |
+          VPC_ID="${{ steps.vpc.outputs.id }}"
+          echo "Polling for ENI cleanup in VPC: $VPC_ID"
+          for i in $(seq 1 30); do
+            COUNT=$(aws ec2 describe-network-interfaces \
+              --filters "Name=vpc-id,Values=$VPC_ID" "Name=status,Values=in-use" \
+              --query 'length(NetworkInterfaces)' \
+              --output text)
+            echo "Attempt $i/30: $COUNT in-use ENIs remaining"
+            [ "$COUNT" -eq 0 ] && echo "ENIs cleared" && break
+            [ "$i" -eq 30 ] && echo "ERROR: Timed out waiting for ENI cleanup" && exit 1
+            sleep 20
+          done
+
+      - name: Destroy remaining resources
         run: terraform destroy -var-file=prod.tfvars -auto-approve
