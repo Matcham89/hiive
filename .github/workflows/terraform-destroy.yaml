@@ -39,7 +39,40 @@ jobs:
         id: vpc
         run: echo "id=$(terraform output -raw vpc_id)" >> "$GITHUB_OUTPUT"
 
-      - name: Delete available ENIs (CloudShell and other orphans)
+      - name: Delete CloudShell VPC environments in this VPC
+        run: |
+          set -euo pipefail
+          VPC_ID="${{ steps.vpc.outputs.id }}"
+
+          ENV_IDS=$(aws cloudshell describe-environments \
+            --query "Environments[?VpcConfig != null && VpcConfig.VpcId=='${VPC_ID}'].EnvironmentId" \
+            --output text 2>/dev/null || true)
+
+          if [ -z "$ENV_IDS" ]; then
+            echo "No CloudShell VPC environments in ${VPC_ID}"
+            exit 0
+          fi
+
+          for ENV_ID in $ENV_IDS; do
+            echo "Deleting CloudShell environment: $ENV_ID"
+            aws cloudshell delete-environment --environment-id "$ENV_ID"
+          done
+
+          for i in $(seq 1 24); do
+            REMAINING=$(aws ec2 describe-network-interfaces \
+              --filters "Name=vpc-id,Values=$VPC_ID" \
+                        "Name=description,Values=*CloudShell*" \
+              --query 'length(NetworkInterfaces)' \
+              --output text)
+            if [ "$REMAINING" = "0" ]; then
+              echo "CloudShell ENIs released"
+              break
+            fi
+            echo "Waiting for $REMAINING CloudShell ENI(s) to release..."
+            sleep 5
+          done
+
+      - name: Delete available ENIs (Lambda/EKS orphans)
         run: |
           VPC_ID="${{ steps.vpc.outputs.id }}"
           AVAILABLE_ENIS=$(aws ec2 describe-network-interfaces \
@@ -48,7 +81,8 @@ jobs:
             --output text)
           for ENI_ID in $AVAILABLE_ENIS; do
             echo "Deleting orphaned ENI: $ENI_ID"
-            aws ec2 delete-network-interface --network-interface-id "$ENI_ID"
+            aws ec2 delete-network-interface --network-interface-id "$ENI_ID" || \
+              echo "Skipping $ENI_ID (likely service-owned)"
           done
 
       - name: Destroy EKS and dependent resources first
