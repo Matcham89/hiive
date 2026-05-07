@@ -3,3 +3,4 @@ We were experiencing painfully slow response times in some areas of our platform
 ---
 
 ### My Thoughts
+NA

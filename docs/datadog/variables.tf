@@ -13,7 +13,7 @@ variable "datadog_app_key" {
 variable "environment" {
   description = "Deployment environment (used in monitor tags and queries)"
   type        = string
-  default     = "production"
+  default     = "prod"
 }
 
 variable "pagerduty_handle" {
