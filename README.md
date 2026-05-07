@@ -1,6 +1,8 @@
 # EKS Terraform Module
 
-Deploys a private EKS cluster on AWS with a containerised hello-world application and CloudWatch observability. All infrastructure is managed as code via Terraform modules.
+Deploys a private EKS cluster on AWS with a containerized nginx application and CloudWatch observability. 
+
+All infrastructure is managed as code via Terraform modules.
 
 ---
 
@@ -15,31 +17,6 @@ Deploys a private EKS cluster on AWS with a containerised hello-world applicatio
 | Observability | CloudWatch Container Insights (metrics + logs) |
 
 ---
-
-## Module Structure
-
-```
-terraform/
-├── main.tf                          # Infra root — VPC, EKS, monitoring
-├── variables.tf
-├── outputs.tf
-├── versions.tf
-├── providers.tf
-├── backend.tf                       # State key: hiive/terraform.tfstate
-├── k8s/                             # Kubernetes root — run from inside VPC
-│   ├── main.tf
-│   ├── providers.tf                 # Reads cluster config from AWS EKS API
-│   ├── variables.tf
-│   ├── versions.tf
-│   ├── outputs.tf
-│   └── backend.tf                   # State key: hiive/k8s.tfstate
-└── modules/
-    ├── vpc/                         # VPC, subnets, NAT Gateway, IGW
-    ├── eks/                         # EKS Auto Mode cluster, control-plane logs
-    ├── app/                         # Kubernetes Deployment + ClusterIP Service
-    └── monitoring/
-        └── cloudwatch/              # Container Insights addon, alarms, dashboard
-```
 
 The two Terraform roots are intentionally separate. The infra root (`terraform/`) uses only the AWS provider and can run from any machine. The Kubernetes root (`terraform/k8s/`) uses the Kubernetes provider and must run from inside the AWS network because the EKS API endpoint is private.
 
@@ -56,7 +33,9 @@ The two Terraform roots are intentionally separate. The infra root (`terraform/`
 
 ### Phase 2 — AWS CloudShell (VPC environment)
 
-No local tooling required. The deploy script installs Terraform automatically. CloudShell must be configured as a **VPC environment** so it can resolve and reach the private EKS API endpoint — instructions in step 4 below.
+No local tooling required. The deploy script installs Terraform automatically. 
+
+CloudShell must be configured as a **VPC environment** so it can resolve and reach the private EKS API endpoint — instructions in step 4 below.
 
 AWS credentials must have permissions to create: VPC, EKS, IAM roles, CloudWatch resources, EC2 security groups.
 
@@ -64,37 +43,33 @@ AWS credentials must have permissions to create: VPC, EKS, IAM roles, CloudWatch
 
 ## Step-by-step deployment
 
-### 1. Clone the repository (local machine)
+### 1. State backend
 
-```bash
-git clone https://github.com/Matcham89/hiive.git
-```
+The state backend is deployed via clickops and sits outside of the terraform.
 
-### 2. Configure state backend
-
-The S3 bucket referenced in both `backend.tf` files must exist before you run `terraform init`. Create it once from your local machine:
+This is intentional:
+- reduces blast radius of accidental destroys via gitops
+- Mitigates the `chicken and egg` situation
 
 ```bash
 aws s3api create-bucket \
-  --bucket terraform-state-<your-account-id>-us-east-1 \
+  --bucket terraform-state \
   --region us-east-1
-
-aws s3api put-bucket-versioning \
-  --bucket terraform-state-<your-account-id>-us-east-1 \
-  --versioning-configuration Status=Enabled
 ```
 
-Update the `bucket` field in both `terraform/backend.tf` and `terraform/k8s/backend.tf` with your bucket name.
+### 2. Authentication
 
-### 3. Deploy Phase 1 — AWS infrastructure (local machine)
+Two accounts have been created in the AWS console
 
-The `terraform/` root uses only the AWS provider and has no dependency on the EKS API. Run this from your local machine.
+- Terraform github actions - _to be used in github actions order to deploy infrastructure_
+- dev account - _to be used by the devs to interact via cli and access the aws console_
 
-```bash
-cd terraform
-terraform init
-terraform apply
-```
+### 3. Deploy Phase 1 — AWS infrastructure
+
+The `terraform/` root uses only the AWS provider and has no dependency on the EKS API. 
+This can be run on the local machine with authentication with the dev account, but it is preffered to use the github action.
+
+
 
 This provisions:
 - VPC with public/private subnets and NAT Gateway
@@ -104,12 +79,6 @@ This provisions:
 - CloudWatch Container Insights, alarms, and dashboard
 
 Takes ~10–15 minutes. Note the outputs at the end — you'll need them for step 4:
-
-```bash
-terraform output vpc_id
-terraform output private_subnet_id
-terraform output cloudshell_security_group_id
-```
 
 ### 4. Create the CloudShell VPC environment
 
@@ -132,7 +101,7 @@ In the CloudShell VPC environment created above, paste this single command. It c
 git clone https://github.com/Matcham89/hiive.git && bash hiive/terraform/k8s/deploy.sh
 ```
 
-Deploys the hello-world namespace, deployment, and service (~1–2 minutes).
+Deploys the application namespace, deployment, and service (~1–2 minutes).
 
 ### 6. Verify the application
 
@@ -152,11 +121,6 @@ In CloudShell, click **Actions → Preview running application** (or use the web
 
 Navigate to **CloudWatch → Dashboards → hiive-eks-overview** in the AWS Console, or get the direct URL from your local machine:
 
-```bash
-# From your local machine in terraform/
-terraform output cloudwatch_dashboard_url
-```
-
 Control-plane logs: **CloudWatch → Log groups → `/aws/eks/hiive/cluster`**
 
 ---
@@ -165,7 +129,7 @@ Control-plane logs: **CloudWatch → Log groups → `/aws/eks/hiive/cluster`**
 
 ### EKS Auto Mode
 
-EKS Auto Mode (launched at re:Invent 2024) lets AWS manage the full node lifecycle — provisioning, patching, and bin-packing via an integrated Karpenter — without requiring a separate node group or launch template configuration. This removes a significant chunk of operational overhead. The trade-off is less low-level control over node configuration, which is an acceptable exchange for most workloads that don't have exotic hardware requirements.
+EKS Auto Mode lets AWS manage the full node lifecycle — provisioning, patching, and bin-packing via an integrated Karpenter — without requiring a separate node group or launch template configuration. This removes a significant chunk of operational overhead. The trade-off is less low-level control over node configuration, which is an acceptable exchange for most workloads that don't have exotic hardware requirements.
 
 ### Private cluster with NAT Gateway for outbound
 
@@ -215,8 +179,6 @@ The EKS API endpoint stays private — that constraint is about who can reach th
 
 The ALB controller provisions an ALB in the **public subnets** (already tagged `kubernetes.io/role/elb = 1` in the VPC module). Traffic flows: `internet → ALB (public subnet) → pod IP (private subnet)`. The EKS API server is never involved in this data path, so the private endpoint constraint is fully preserved.
 
-In Terraform, this means adding an IRSA role for the LBC, a `helm_release` for the controller, and a `kubernetes_ingress_v1` resource — none of which require the cluster to have a public endpoint.
-
 ---
 
 ### Security decisions and tradeoffs
@@ -241,15 +203,25 @@ Explicit CPU/memory limits (`100m` / `128Mi`) prevent a misbehaving pod from sta
 
 ---
 
+## Future improvements
+
+| Item | Reason |
+|---|---|
+| DynamoDB state lock table | Prevents state corruption if two Terraform runs execute concurrently |
+| Scoped IAM permissions for `terraform-github-actions` | `AdministratorAccess` is broader than necessary; least-privilege reduces blast radius of a compromised token |
+| KMS key for state bucket | Gives an audit trail of who accessed or decrypted state, and allows key rotation |
+
+---
+
 ## Inputs
 
-| Name | Description | Default |
-|---|---|---|
-| `aws_region` | AWS region | `us-east-1` |
-| `environment` | Environment name | `dev` |
-| `cluster_name` | EKS cluster name | `hiive` |
+| Name | Description | Default       |
+|---|---|---------------|
+| `aws_region` | AWS region | `us-east-1`   |
+| `environment` | Environment name | `prod`        |
+| `cluster_name` | EKS cluster name | `hiive`       |
 | `vpc_cidr` | VPC CIDR block | `10.0.0.0/16` |
-| `kubernetes_version` | Kubernetes version | `1.33` |
+| `kubernetes_version` | Kubernetes version | `1.34`        |
 
 ## Outputs
 

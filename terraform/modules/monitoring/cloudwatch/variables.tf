@@ -2,12 +2,8 @@ variable "cluster_name" {
   type = string
 }
 
-variable "oidc_provider_arn" {
-  type = string
-}
-
-variable "oidc_provider" {
-  description = "OIDC provider URL without https:// prefix"
+variable "cloudwatch_observability_role_arn" {
+  description = "IAM role ARN for the CloudWatch observability IRSA"
   type        = string
 }
 

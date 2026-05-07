@@ -21,7 +21,6 @@ jobs:
     name: Destroy
     runs-on: ubuntu-latest
     if: inputs.confirm_destroy == 'destroy'
-    environment: production
     steps:
       - uses: actions/checkout@v6
 

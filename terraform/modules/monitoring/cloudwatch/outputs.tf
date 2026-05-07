@@ -4,5 +4,5 @@ output "dashboard_url" {
 }
 
 output "cloudwatch_role_arn" {
-  value = aws_iam_role.cloudwatch_observability.arn
+  value = var.cloudwatch_observability_role_arn
 }

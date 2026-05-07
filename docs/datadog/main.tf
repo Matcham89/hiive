@@ -3,7 +3,7 @@
 # Verify in Datadog APM > Traces before applying.
 
 locals {
-  common_tags = ["env:production", "team:sre"]
+  common_tags = ["env:prod", "team:sre"]
 }
 
 resource "datadog_synthetics_test" "critical_path" {
@@ -82,7 +82,7 @@ resource "datadog_monitor" "postgres_deadlocks" {
   type               = "query alert"
   message            = "Monitor triggered. Notify: @hipchat-channel"
   escalation_message = "Escalation message @pagerduty"
-  # Alerts immediately if any database deadlocks are detected, because on this platform even one is unacceptable.
+  # Alerts immediately if any database deadlocks are detected.
   query = "sum(last_5m):postgresql.deadlocks{env:production} > 0"
 
   monitor_thresholds {
