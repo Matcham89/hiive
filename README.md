@@ -43,47 +43,41 @@ AWS credentials must have permissions to create: VPC, EKS, IAM roles, CloudWatch
 
 ## Step-by-step deployment
 
-### 1. State backend
+### 1. Bootstrap (one-time, clickops)
 
-The state backend is deployed via clickops and sits outside of the terraform.
+Two resources are created manually before Terraform runs — both exist outside the state to avoid chicken-and-egg dependencies:
 
-This is intentional:
-- reduces blast radius of accidental destroys via gitops
-- Mitigates the `chicken and egg` situation
-
+**S3 state bucket**
 ```bash
 aws s3api create-bucket \
-  --bucket terraform-state \
+  --bucket terraform-state-637423429740-us-east-1-an \
   --region us-east-1
 ```
 
-### 2. Authentication
+**IAM role** — created via the AWS console:
+- `terraform-github-actions` — assumed by GitHub Actions via OIDC to deploy infrastructure
 
-Two accounts have been created in the AWS console
+### 2. Deploy Phase 1 — AWS infrastructure
 
-- Terraform github actions - _to be used in github actions order to deploy infrastructure_
-- dev account - _to be used by the devs to interact via cli and access the aws console_
+Trigger the Terraform GitHub Action manually:
 
-### 3. Deploy Phase 1 — AWS infrastructure
-
-The `terraform/` root uses only the AWS provider and has no dependency on the EKS API. 
-This can be run on the local machine with authentication with the dev account, but it is preffered to use the github action.
-
-
+1. GitHub → **Actions** → **Terraform**
+2. Click **Run workflow**
 
 This provisions:
 - VPC with public/private subnets and NAT Gateway
 - EKS Auto Mode cluster (private endpoint)
+- IAM roles (CloudWatch IRSA, dev-account)
 - A `cloudshell-vpc-sg` security group for the CloudShell VPC environment
 - An ingress rule on the EKS cluster security group allowing 443 from `cloudshell-vpc-sg`
 - CloudWatch Container Insights, alarms, and dashboard
 
-Takes ~10–15 minutes. Note the outputs at the end — you'll need them for step 4:
+Takes ~10–15 minutes.
 
-### 4. Create the CloudShell VPC environment
+### 3. Create the CloudShell VPC environment
 
 Phase 2 runs from CloudShell **inside the VPC** so it can reach the private EKS endpoint and pull from GitHub via NAT Gateway.
-
+Authenticate using the dev-account credentials from 1Password.
 1. AWS Console → top-right toolbar → **CloudShell**
 2. **Actions → Create environment**
 3. Configure:
@@ -93,9 +87,9 @@ Phase 2 runs from CloudShell **inside the VPC** so it can reach the private EKS 
    - **Security group**: value from `terraform output cloudshell_security_group_id`
 4. Click **Create** (~1 minute)
 
-### 5. Deploy Phase 2 — Kubernetes application (CloudShell VPC environment)
+### 4. Deploy Phase 2 — Kubernetes application (CloudShell VPC environment)
 
-In the CloudShell VPC environment created above, paste this single command. It clones the repo, installs Terraform if needed, then runs `init`, `apply`, and configures kubectl:
+In the CloudShell VPC environment paste this single command. It clones the repo, installs Terraform if needed, then runs `init`, `apply`, and configures kubectl:
 
 ```bash
 git clone https://github.com/Matcham89/hiive.git && bash hiive/terraform/k8s/deploy.sh
@@ -103,7 +97,7 @@ git clone https://github.com/Matcham89/hiive.git && bash hiive/terraform/k8s/dep
 
 Deploys the application namespace, deployment, and service (~1–2 minutes).
 
-### 6. Verify the application
+### 5. Verify the application
 
 Still in CloudShell, check the pods and port-forward to preview:
 
@@ -117,11 +111,29 @@ kubectl port-forward -n hello-world svc/hello-world 8080:80
 
 In CloudShell, click **Actions → Preview running application** (or use the web preview button on port 8080) to open the nginx welcome page in your browser.
 
-### 7. View observability
+### 6. View observability
 
 Navigate to **CloudWatch → Dashboards → hiive-eks-overview** in the AWS Console, or get the direct URL from your local machine:
 
 Control-plane logs: **CloudWatch → Log groups → `/aws/eks/hiive/cluster`**
+
+---
+
+## Making changes
+
+All infrastructure changes go through code — open a pull request, get it merged, and the GitHub Action will apply it. Do not make manual changes to resources managed by Terraform.
+
+---
+
+## Destroying infrastructure
+
+1. GitHub → **Actions** → **Terraform Destroy**
+2. Click **Run workflow**
+3. In the confirmation field type `destroy` and click **Run workflow**
+
+The workflow requires the word `destroy` to be typed explicitly before it will proceed. It runs `terraform destroy -auto-approve` against `prod.tfvars`.
+
+> The S3 state bucket and `terraform-github-actions` role are not managed by Terraform and will not be destroyed by this workflow — they must be removed manually if needed.
 
 ---
 
