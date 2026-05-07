@@ -54,8 +54,9 @@ aws s3api create-bucket \
   --region us-east-1
 ```
 
-**IAM role** — created via the AWS console:
+**IAM accounts** — created via the AWS console:
 - `terraform-github-actions` — assumed by GitHub Actions via OIDC to deploy infrastructure
+- `dev-account` — used by developers for CLI access and AWS console. Credentials stored in 1Password.
 
 ### 2. Deploy Phase 1 — AWS infrastructure
 

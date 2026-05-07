@@ -1,18 +1,3 @@
-# IAM User: dev-account
-resource "aws_iam_user" "dev_account" {
-  name = "dev-account"
-
-  tags = {
-    Environment = var.environment
-    Terraform   = "true"
-  }
-}
-
-resource "aws_iam_user_policy_attachment" "dev_account_admin" {
-  user       = aws_iam_user.dev_account.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
-
 # IRSA Role: CloudWatch Container Insights
 resource "aws_iam_role" "cloudwatch_observability" {
   name = "${var.cluster_name}-cloudwatch-observability"
