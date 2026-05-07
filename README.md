@@ -125,6 +125,18 @@ All infrastructure changes go through code — open a pull request, get it merge
 
 ---
 
+## Destroying infrastructure
+
+1. GitHub → **Actions** → **Terraform Destroy**
+2. Click **Run workflow**
+3. In the confirmation field type `destroy` and click **Run workflow**
+
+The workflow requires the word `destroy` to be typed explicitly before it will proceed. It runs `terraform destroy -auto-approve` against `prod.tfvars`.
+
+> The S3 state bucket and `terraform-github-actions` role are not managed by Terraform and will not be destroyed by this workflow — they must be removed manually if needed.
+
+---
+
 ## Design decisions
 
 ### EKS Auto Mode
