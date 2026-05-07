@@ -39,43 +39,20 @@ jobs:
         id: vpc
         run: echo "id=$(terraform output -raw vpc_id)" >> "$GITHUB_OUTPUT"
 
-      - name: Check for CloudShell VPC environments (must be deleted manually)
+      - name: Fail fast if CloudShell VPC environments exist
         run: |
-          set -euo pipefail
-          VPC_ID="${{ steps.vpc.outputs.id }}"
-
-          # CloudShell VPC envs create service-owned ENIs that block subnet/SG/VPC
-          # delete. AWS does not expose a CLI/SDK to manage VPC environments —
-          # they must be removed via the AWS Console before destroy can succeed.
-          CLOUDSHELL_ENIS=$(aws ec2 describe-network-interfaces \
-            --filters "Name=vpc-id,Values=$VPC_ID" \
+          ENIS=$(aws ec2 describe-network-interfaces \
+            --filters "Name=vpc-id,Values=${{ steps.vpc.outputs.id }}" \
                       "Name=description,Values=*CloudShell*" \
-            --query 'NetworkInterfaces[].NetworkInterfaceId' \
-            --output text)
-
-          if [ -n "$CLOUDSHELL_ENIS" ]; then
-            echo "::error::CloudShell ENIs still present in $VPC_ID: $CLOUDSHELL_ENIS"
-            echo "::error::Delete the CloudShell VPC environment(s) before re-running destroy:"
-            echo "::error::  AWS Console → CloudShell → Actions → Manage VPC environments → Delete"
+            --query 'NetworkInterfaces[].NetworkInterfaceId' --output text)
+          if [ -n "$ENIS" ]; then
+            echo "::error::CloudShell ENIs present: $ENIS"
+            echo "::error::Delete CloudShell VPC environments via Console first:"
+            echo "::error::  CloudShell → Actions → Manage VPC environments → Delete"
             exit 1
           fi
 
-          echo "No CloudShell ENIs in $VPC_ID — safe to proceed"
-
-      - name: Delete available ENIs (Lambda/EKS orphans)
-        run: |
-          VPC_ID="${{ steps.vpc.outputs.id }}"
-          AVAILABLE_ENIS=$(aws ec2 describe-network-interfaces \
-            --filters "Name=vpc-id,Values=$VPC_ID" "Name=status,Values=available" \
-            --query 'NetworkInterfaces[*].NetworkInterfaceId' \
-            --output text)
-          for ENI_ID in $AVAILABLE_ENIS; do
-            echo "Deleting orphaned ENI: $ENI_ID"
-            aws ec2 delete-network-interface --network-interface-id "$ENI_ID" || \
-              echo "Skipping $ENI_ID (likely service-owned)"
-          done
-
-      - name: Destroy EKS and dependent resources first
+      - name: Destroy EKS first
         run: |
           terraform destroy \
             -target=module.monitoring \
@@ -84,20 +61,19 @@ jobs:
             -var-file=prod.tfvars \
             -auto-approve
 
-      - name: Wait for EKS ENIs to be released
+      - name: Wait for EKS ENIs to release
         run: |
-          VPC_ID="${{ steps.vpc.outputs.id }}"
-          echo "Waiting for all ENIs in VPC to clear..."
-          for i in $(seq 1 30); do
+          for i in $(seq 1 15); do
             COUNT=$(aws ec2 describe-network-interfaces \
-              --filters "Name=vpc-id,Values=$VPC_ID" \
-              --query 'length(NetworkInterfaces)' \
+              --filters "Name=vpc-id,Values=${{ steps.vpc.outputs.id }}" \
+              --query 'NetworkInterfaces[?!contains(Description, `NAT Gateway`)] | length(@)' \
               --output text)
-            echo "Attempt $i/30: $COUNT ENIs remaining"
-            [ "$COUNT" -eq 0 ] && echo "All ENIs cleared" && break
-            [ "$i" -eq 30 ] && echo "ERROR: Timed out waiting for ENI cleanup" && exit 1
+            [ "$COUNT" -eq 0 ] && exit 0
+            echo "Attempt $i/15: $COUNT EKS ENIs still attached"
             sleep 20
           done
+          echo "::error::EKS ENIs did not release after 5 min"
+          exit 1
 
       - name: Destroy remaining resources
         run: terraform destroy -var-file=prod.tfvars -auto-approve
