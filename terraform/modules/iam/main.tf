@@ -15,44 +15,6 @@ resource "aws_iam_user_policy_attachment" "dev_account_admin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# IAM Role: terraform-github-actions
-resource "aws_iam_role" "terraform_github_actions" {
-  name = "terraform-github-actions"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = [
-              "repo:Matcham89/hiive:*"
-            ]
-          }
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Environment = var.environment
-    Terraform   = "true"
-  }
-}
-
-resource "aws_iam_role_policy_attachment" "terraform_github_actions_admin" {
-  role       = aws_iam_role.terraform_github_actions.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
-
 # IRSA Role: CloudWatch Container Insights
 resource "aws_iam_role" "cloudwatch_observability" {
   name = "${var.cluster_name}-cloudwatch-observability"
