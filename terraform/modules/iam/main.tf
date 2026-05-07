@@ -1,5 +1,3 @@
-data "aws_caller_identity" "current" {}
-
 # IAM User: dev-account
 resource "aws_iam_user" "dev_account" {
   name = "dev-account"
