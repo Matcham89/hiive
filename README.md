@@ -51,6 +51,12 @@ This is intentional:
 - reduces blast radius of accidental destroys via gitops
 - Mitigates the `chicken and egg` situation
 
+```bash
+aws s3api create-bucket \
+  --bucket terraform-state \
+  --region us-east-1
+```
+
 ### 2. Authentication
 
 Two accounts have been created in the AWS console
@@ -194,6 +200,16 @@ Using a pinned, minimal base image (Alpine) over `nginx:latest` reduces the atta
 
 **Resource requests and limits on the container**
 Explicit CPU/memory limits (`100m` / `128Mi`) prevent a misbehaving pod from starving other workloads on the same node. Requests (`50m` / `64Mi`) allow the scheduler to make placement decisions accurately. Omitting limits is a common misconfiguration that enables noisy-neighbour problems and uncapped resource consumption.
+
+---
+
+## Future improvements
+
+| Item | Reason |
+|---|---|
+| DynamoDB state lock table | Prevents state corruption if two Terraform runs execute concurrently |
+| Scoped IAM permissions for `terraform-github-actions` | `AdministratorAccess` is broader than necessary; least-privilege reduces blast radius of a compromised token |
+| KMS key for state bucket | Gives an audit trail of who accessed or decrypted state, and allows key rotation |
 
 ---
 

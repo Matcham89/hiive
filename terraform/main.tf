@@ -49,11 +49,10 @@ resource "aws_security_group_rule" "cloudshell_to_eks" {
 module "monitoring" {
   source = "./modules/monitoring/cloudwatch"
 
-  cluster_name      = var.cluster_name
-  oidc_provider_arn = module.eks.oidc_provider_arn
-  oidc_provider     = module.eks.oidc_provider
-  environment       = var.environment
-  region            = var.aws_region
+  cluster_name                      = var.cluster_name
+  cloudwatch_observability_role_arn = module.iam.cloudwatch_observability_role_arn
+  environment                       = var.environment
+  region                            = var.aws_region
 
-  depends_on = [module.eks]
+  depends_on = [module.eks, module.iam]
 }
